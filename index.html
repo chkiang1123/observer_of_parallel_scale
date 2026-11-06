@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scale Observer Deck - iPad Monitor</title>
+    <!-- SheetJS library to parse Excel (.xlsx, .xls, .csv) files directly in browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --red: #ff4d4d;
+            --orange: #ffa500;
+            --green: #2ecc71;
+            --blue: #3498db;
+            --purple: #9b59b6;
+            --gold: #d4af37;
+            --silver: #bdc3c7;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1f;
+            color: #fff;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+            min-height: 100vh;
+            overflow-y: auto;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-grow: 1;
+        }
+
+        /* --- IPAD WORKSPACE GRID --- */
+        .workspace-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            width: 100%;
+            flex-grow: 1;
+        }
+
+        .scale-column {
+            background: #25252d;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .scale-title {
+            font-size: 26px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-align: center;
+            padding-bottom: 12px;
+            border-bottom: 3px solid rgba(255,255,255,0.06);
+        }
+
+        /* --- LARGE GRAPHIC DISPLAY --- */
+        .scale-graphic-container {
+            flex-grow: 1;
+            min-height: 420px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            position: relative;
+            background: #141419;
+            border-radius: 12px;
+            padding: 0 20px 25px 20px;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .scale-base {
+            width: 180px;
+            height: 18px;
+            background: #444;
+            border-radius: 6px 6px 0 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .scale-pillar {
+            width: 24px;
+            height: 270px;
+            background: #666;
+            position: absolute;
+            bottom: 18px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
+        }
+
+        .scale-beam-assembly {
+            position: absolute;
+            top: 110px;
+            width: 90%;
+            max-width: 580px;
+            transform-origin: center center;
+            z-index: 2;
+            transition: transform 1.2s ease-in-out;
+        }
+
+        .scale-beam {
+            width: 100%;
+            height: 14px;
+            position: relative;
+            border-radius: 6px;
+        }
+        .primary-col .scale-beam { background: var(--gold); }
+        .secondary-col .scale-beam { background: var(--silver); }
+
+        .hanger {
+            position: absolute;
+            top: 14px;
+            width: 4px;
+            height: 65px;
+            background: #888;
+            transform-origin: top center;
+            transition: transform 1.2s ease-in-out;
+        }
+        .hanger-left { left: 20px; }
+        .hanger-right { right: 20px; }
+
+        .pan {
+            position: absolute;
+            top: 65px;
+            width: 190px;
+            height: 190px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 3px dashed #444;
+            border-bottom: 8px solid #555;
+            border-radius: 8px 8px 16px 16px;
+            transform: translateX(-50%) rotate(0deg);
+            transform-origin: top center;
+            display: flex;
+            flex-direction: column-reverse;
+            justify-content: flex-start;
+            padding: 12px;
+            gap: 6px;
+            box-sizing: border-box;
+            transition: transform 1.2s ease-in-out;
+        }
+        .pan-left { left: 50%; }
+        .pan-right { left: 50%; }
+
+        .pan-cubes-shelf {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start;
+            align-content: flex-start;
+            gap: 6px;
+            width: 100%;
+        }
+
+        /* Cubes with Drop Animation */
+        .cube-sprite {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            box-shadow: inset 0 0 6px rgba(0,0,0,0.6), 0 2px 4px rgba(0,0,0,0.4);
+        }
+
+        .cube-sprite.dropping {
+            animation: dropFromSky 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+        }
+
+        @keyframes dropFromSky {
+            0% { transform: translateY(-320px) scale(1.3); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* Result Banners */
+        .result-box {
+            background: #111;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 20px;
+            border-left: 8px solid #555;
+            transition: all 0.3s ease;
+            opacity: 0.3;
+        }
+        .result-box.active { opacity: 1; }
+        .balanced { color: #2ecc71; border-left-color: #2ecc71; }
+        .left-heavy { color: #f1c40f; border-left-color: #f1c40f; }
+        .right-heavy { color: #e67e22; border-left-color: #e67e22; }
+
+        /* --- CONTROL BUTTONS & CONTROLS --- */
+        .bottom-actions {
+            margin-top: 25px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .action-button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn-update {
+            background-color: #3498db;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 18px 50px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            transition: transform 0.1s ease, background-color 0.2s ease;
+        }
+        .btn-update:hover { background-color: #2980b9; }
+        .btn-update:active { transform: scale(0.97); }
+        .btn-update:disabled { background-color: #555; box-shadow: none; cursor: not-allowed; }
+
+        .btn-file-label {
+            background-color: #27ae60;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            padding: 18px 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: background-color 0.2s;
+        }
+        .btn-file-label:hover { background-color: #219653; }
+        #excel-file-input { display: none; }
+
+        .status-text {
+            color: #aaa;
+            font-size: 16px;
+            font-style: italic;
+            min-height: 24px;
+            text-align: center;
+        }
+
+        /* --- RECORD LOG SECTION --- */
+        #observer-record-section {
+            width: 100%;
+            background: #25252d;
+            border-radius: 16px;
+            padding: 20px;
+            box-sizing: border-box;
+            margin-top: 25px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+        }
+
+        #observer-record-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 20px;
+            color: #fff;
+            text-align: center;
+            border-bottom: 2px solid rgba(255,255,255,0.08);
+            padding-bottom: 10px;
+        }
+
+        #record-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 280px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .record-placeholder {
+            text-align: center;
+            color: #777;
+            font-style: italic;
+            padding: 15px;
+            font-size: 15px;
+        }
+
+        .record-item {
+            background: #1f1f26;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 15px;
+            border-left: 5px solid #3498db;
+            line-height: 1.6;
+        }
+
+        .record-meta {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 6px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        #record-list::-webkit-scrollbar { width: 6px; }
+        #record-list::-webkit-scrollbar-track { background: #1f1f26; }
+        #record-list::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="workspace-grid">
+            
+            <!-- PRIMARY SCALE -->
+            <div class="scale-column primary-col">
+                <div class="scale-title" style="color: var(--gold);">⭐ Primary Scale</div>
+                <div class="scale-graphic-container">
+                    <div class="scale-base"><div class="scale-pillar"></div></div>
+                    <div id="beam-p" class="scale-beam-assembly">
+                        <div class="scale-beam">
+                            <div class="hanger hanger-left" id="hanger-p-l">
+                                <div class="pan pan-left" id="pan-p-l">
+                                    <div class="pan-cubes-shelf" id="cubes-p-l"></div>
+                                </div>
+                            </div>
+                            <div class="hanger hanger-right" id="hanger-p-r">
+                                <div class="pan pan-right" id="pan-p-r">
+                                    <div class="pan-cubes-shelf" id="cubes-p-r"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="result-p" class="result-box balanced">⚖️ BALANCED</div>
+            </div>
+
+            <!-- SECONDARY SCALE -->
+            <div class="scale-column secondary-col">
+                <div class="scale-title" style="color: var(--silver);">🌙 Secondary Scale</div>
+                <div class="scale-graphic-container">
+                    <div class="scale-base"><div class="scale-pillar"></div></div>
+                    <div id="beam-s" class="scale-beam-assembly">
+                        <div class="scale-beam">
+                            <div class="hanger hanger-left" id="hanger-s-l">
+                                <div class="pan pan-left" id="pan-s-l">
+                                    <div class="pan-cubes-shelf" id="cubes-s-l"></div>
+                                </div>
+                            </div>
+                            <div class="hanger hanger-right" id="hanger-s-r">
+                                <div class="pan pan-right" id="pan-s-r">
+                                    <div class="pan-cubes-shelf" id="cubes-s-r"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="result-s" class="result-box balanced">⚖️ BALANCED</div>
+            </div>
+
+        </div>
+
+        <div class="bottom-actions">
+            <div class="action-button-group">
+                <button id="btn-update" class="btn-update" onclick="fetchUpdate()">🔄 Update Display</button>
+                <label for="excel-file-input" class="btn-file-label">
+                    📂 Load Excel File (.xlsx)
+                </label>
+                <input type="file" id="excel-file-input" accept=".xlsx, .xls, .csv" onchange="handleExcelFileUpload(event)">
+            </div>
+            <div id="status-text" class="status-text">Ready.</div>
+        </div>
+
+        <!-- OBSERVATION LOG -->
+        <div id="observer-record-section">
+            <h3>📝 Calculation History & Record Log</h3>
+            <div id="record-list">
+                <div class="record-placeholder">No records loaded yet. Tap "🔄 Update Display" or load an Excel file to observe.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SPREADSHEET_ID = '1M6_B8ccgFx1ud7zTLGTBsnkgVyKuYa3NJxqIhPm-_dQ';
+        const colors = ['red', 'orange', 'green', 'blue', 'purple'];
+
+        let currentState = {
+            p: { l: {red:0, orange:0, green:0, blue:0, purple:0}, r: {red:0, orange:0, green:0, blue:0, purple:0} },
+            s: { l: {red:0, orange:0, green:0, blue:0, purple:0}, r: {red:0, orange:0, green:0, blue:0, purple:0} }
+        };
+
+        let lastProcessedKey = null;
+        let animationQueue = [];
+        let pendingResultData = null;
+
+        /* ==========================================================
+           1. DATA FETCHING (ONLINE SPREADSHEET & APPS SCRIPT)
+           ========================================================== */
+        function fetchUpdate() {
+            const btn = document.getElementById('btn-update');
+            const status = document.getElementById('status-text');
+            btn.disabled = true;
+            status.innerText = "Connecting to Sheet / Excel online...";
+
+            // Method A: If running inside Google Apps Script Web App
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                    .withSuccessHandler(processData)
+                    .withFailureHandler(err => {
+                        // Fall back to direct CSV export fetch
+                        fetchFromGoogleSheetDirect();
+                    })
+                    .getLatestScaleData();
+            } else {
+                // Method B: Direct web fetch from Google Sheets CSV export
+                fetchFromGoogleSheetDirect();
+            }
+        }
+
+        // Direct fetch without needing Apps Script environment
+        function fetchFromGoogleSheetDirect() {
+            const status = document.getElementById('status-text');
+            const btn = document.getElementById('btn-update');
+            const csvUrl = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv`;
+
+            fetch(csvUrl)
+                .then(res => {
+                    if (!res.ok) throw new Error("Could not access sheet. Ensure sharing is set to 'Anyone with link can view'.");
+                    return res.text();
+                })
+                .then(csvText => {
+                    parseCsvData(csvText);
+                })
+                .catch(err => {
+                    status.innerText = "Online Fetch Error: " + err.message + ". You can use '📂 Load Excel File' below.";
+                    btn.disabled = false;
+                });
+        }
+
+        /* ==========================================================
+           2. EXCEL FILE UPLOAD HANDLER (.xlsx / .csv)
+           ========================================================== */
+        function handleExcelFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const status = document.getElementById('status-text');
+            status.innerText = `Reading Excel file: ${file.name}...`;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Read the first sheet
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    if (!jsonRows || jsonRows.length <= 1) {
+                        status.innerText = "Excel file has no calculation rows.";
+                        return;
+                    }
+
+                    // Extract latest row from Excel
+                    const headers = jsonRows[0].map(h => String(h).toLowerCase().trim());
+                    const lastRow = jsonRows[jsonRows.length - 1];
+
+                    function findCol(keywords, defaultIndex) {
+                        for (let i = 0; i < headers.length; i++) {
+                            if (keywords.every(kw => headers[i].includes(kw))) return i;
+                        }
+                        return defaultIndex;
+                    }
+
+                    const formattedData = {
+                        rowNumber: jsonRows.length,
+                        sheetName: file.name,
+                        timestamp: String(lastRow[findCol(['time'], 0)] || new Date().toLocaleTimeString()),
+                        weights: String(lastRow[findCol(['weight'], 1)] || ""),
+                        primaryLeft: String(lastRow[findCol(['primary', 'left'], 2)] || ""),
+                        primaryRight: String(lastRow[findCol(['primary', 'right'], 3)] || ""),
+                        primaryResult: String(lastRow[findCol(['primary', 'result'], 4)] || "⚖️ BALANCED"),
+                        secondaryLeft: String(lastRow[findCol(['secondary', 'left'], 5)] || ""),
+                        secondaryRight: String(lastRow[findCol(['secondary', 'right'], 6)] || ""),
+                        secondaryResult: String(lastRow[findCol(['secondary', 'result'], 7)] || "⚖️ BALANCED")
+                    };
+
+                    processData(formattedData);
+                } catch (err) {
+                    status.innerText = "Failed to parse Excel file: " + err.message;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // CSV parsing helper for direct online sheet fetch
+        function parseCsvData(csvText) {
+            const workbook = XLSX.read(csvText, { type: 'string' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            if (!jsonRows || jsonRows.length <= 1) {
+                document.getElementById('status-text').innerText = "No calculations found in sheet yet.";
+                document.getElementById('btn-update').disabled = false;
+                return;
+            }
+
+            const headers = jsonRows[0].map(h => String(h).toLowerCase().trim());
+            const lastRow = jsonRows[jsonRows.length - 1];
+
+            function findCol(keywords, defaultIndex) {
+                for (let i = 0; i < headers.length; i++) {
+                    if (keywords.every(kw => headers[i].includes(kw))) return i;
+                }
+                return defaultIndex;
+            }
+
+            const formattedData = {
+                rowNumber: jsonRows.length,
+                sheetName: "Google Sheet / Online Excel",
+                timestamp: String(lastRow[findCol(['time'], 0)] || new Date().toLocaleTimeString()),
+                weights: String(lastRow[findCol(['weight'], 1)] || ""),
+                primaryLeft: String(lastRow[findCol(['primary', 'left'], 2)] || ""),
+                primaryRight: String(lastRow[findCol(['primary', 'right'], 3)] || ""),
+                primaryResult: String(lastRow[findCol(['primary', 'result'], 4)] || "⚖️ BALANCED"),
+                secondaryLeft: String(lastRow[findCol(['secondary', 'left'], 5)] || ""),
+                secondaryRight: String(lastRow[findCol(['secondary', 'right'], 6)] || ""),
+                secondaryResult: String(lastRow[findCol(['secondary', 'result'], 7)] || "⚖️ BALANCED")
+            };
+
+            processData(formattedData);
+        }
+
+        /* ==========================================================
+           3. STRING PARSER FOR PAN DATA (R:2 | B:1 OR Red:2, Blue:1)
+           ========================================================== */
+        function parsePanString(str) {
+            let res = {red:0, orange:0, green:0, blue:0, purple:0};
+            if (!str || typeof str !== 'string') return res;
+            let s = str.trim();
+            if (s === '' || s.toLowerCase() === 'empty') return res;
+
+            let items = s.replace(/\|/g, ',').replace(/;/g, ',').split(',');
+
+            items.forEach(item => {
+                let trimmed = item.trim();
+                if (!trimmed) return;
+
+                // Match "Color:Qty" (e.g. Red:2, R:2)
+                let colonMatch = trimmed.match(/^([a-zA-Z]+)\s*[:=]\s*(\d+)/);
+                if (colonMatch) {
+                    applyColorQty(res, colonMatch[1].toLowerCase(), parseInt(colonMatch[2], 10));
+                    return;
+                }
+
+                // Match "Qty Color" (e.g. 2 Red, 2 r)
+                let qtyColorMatch = trimmed.match(/^(\d+)\s*([a-zA-Z]+)/);
+                if (qtyColorMatch) {
+                    applyColorQty(res, qtyColorMatch[2].toLowerCase(), parseInt(qtyColorMatch[1], 10));
+                    return;
+                }
+            });
+
+            return res;
+        }
+
+        function applyColorQty(res, key, qty) {
+            if (isNaN(qty)) return;
+            if (key === 'red' || key === 'r') res.red = qty;
+            else if (key === 'orange' || key === 'o') res.orange = qty;
+            else if (key === 'green' || key === 'g') res.green = qty;
+            else if (key === 'blue' || key === 'b') res.blue = qty;
+            else if (key === 'purple' || key === 'p') res.purple = qty;
+        }
+
+        /* ==========================================================
+           4. SEQUENTIAL DROP ANIMATION & TILT LOGIC
+           ========================================================== */
+        function processData(data) {
+            const btn = document.getElementById('btn-update');
+            const status = document.getElementById('status-text');
+
+            if (!data) {
+                status.innerText = "No data returned.";
+                btn.disabled = false;
+                return;
+            }
+            if (data.empty) {
+                status.innerText = data.message;
+                btn.disabled = false;
+                return;
+            }
+            if (data.error) {
+                status.innerText = "Error: " + data.error;
+                btn.disabled = false;
+                return;
+            }
+
+            const targetStates = {
+                p: { l: parsePanString(data.primaryLeft), r: parsePanString(data.primaryRight) },
+                s: { l: parsePanString(data.secondaryLeft), r: parsePanString(data.secondaryRight) }
+            };
+
+            let totalAdded = 0;
+            let requiresHardReset = false;
+            animationQueue = [];
+
+            // Compare with current visible cubes to build drop sequence
+            ['p', 's'].forEach(scale => {
+                ['l', 'r'].forEach(side => {
+                    colors.forEach(color => {
+                        let oldQty = currentState[scale][side][color];
+                        let newQty = targetStates[scale][side][color];
+                        let diff = newQty - oldQty;
+
+                        if (diff < 0) {
+                            requiresHardReset = true;
+                        } else if (diff > 0) {
+                            totalAdded += diff;
+                            for (let i = 0; i < diff; i++) {
+                                animationQueue.push({ scale, side, color });
+                            }
+                        }
+                    });
+                });
+            });
+
+            const currentKey = `${data.rowNumber}-${data.primaryLeft}-${data.primaryRight}`;
+            if (!requiresHardReset && totalAdded === 0 && lastProcessedKey === currentKey) {
+                status.innerText = `✓ Up to date with Row #${data.rowNumber}. No new cubes to add.`;
+                btn.disabled = false;
+                return;
+            }
+
+            lastProcessedKey = currentKey;
+            pendingResultData = data;
+            
+            // Level scales to neutral while cubes drop
+            resetScaleRotations();
+
+            if (requiresHardReset) {
+                status.innerText = `Syncing scale state (Row #${data.rowNumber})...`;
+                currentState = JSON.parse(JSON.stringify(targetStates));
+                hardRenderAllPans();
+                animationQueue = [];
+                triggerSwings();
+            } else if (animationQueue.length > 0) {
+                status.innerText = `Dropping ${totalAdded} cube(s) one by one...`;
+                processQueue();
+            } else {
+                triggerSwings();
+            }
+        }
+
+        // Drop cubes sequentially with delay
+        function processQueue() {
+            if (animationQueue.length === 0) {
+                // All cubes dropped: wait briefly, then swing
+                setTimeout(triggerSwings, 500);
+                return;
+            }
+
+            let task = animationQueue.shift();
+            currentState[task.scale][task.side][task.color] += 1;
+
+            let container = document.getElementById(`cubes-${task.scale}-${task.side}`);
+            let cube = document.createElement('div');
+            cube.className = 'cube-sprite dropping';
+            cube.style.backgroundColor = `var(--${task.color})`;
+            container.appendChild(cube);
+
+            // 300ms pause between each cube drop
+            setTimeout(processQueue, 300);
+        }
+
+        function hardRenderAllPans() {
+            ['p', 's'].forEach(scale => {
+                ['l', 'r'].forEach(side => {
+                    let container = document.getElementById(`cubes-${scale}-${side}`);
+                    container.innerHTML = '';
+                    colors.forEach(color => {
+                        let qty = currentState[scale][side][color];
+                        for (let i = 0; i < qty; i++) {
+                            let cube = document.createElement('div');
+                            cube.className = 'cube-sprite';
+                            cube.style.backgroundColor = `var(--${color})`;
+                            container.appendChild(cube);
+                        }
+                    });
+                });
+            });
+        }
+
+        function resetScaleRotations() {
+            ['p', 's'].forEach(scale => {
+                document.getElementById(`beam-${scale}`).style.transform = `rotate(0deg)`;
+                document.getElementById(`pan-${scale}-l`).style.transform = `translateX(-50%) rotate(0deg)`;
+                document.getElementById(`pan-${scale}-r`).style.transform = `translateX(-50%) rotate(0deg)`;
+                document.getElementById(`result-${scale}`).classList.remove("active");
+            });
+        }
+
+        function applySwingToScale(scale, resultText) {
+            let beam = document.getElementById(`beam-${scale}`);
+            let panL = document.getElementById(`pan-${scale}-l`);
+            let panR = document.getElementById(`pan-${scale}-r`);
+            let resBox = document.getElementById(`result-${scale}`);
+
+            let angle = 0;
+            let finalClass = "balanced";
+
+            if (resultText && resultText.includes("LEFT")) {
+                angle = -8;
+                finalClass = "left-heavy";
+            } else if (resultText && resultText.includes("RIGHT")) {
+                angle = 8;
+                finalClass = "right-heavy";
+            }
+
+            beam.style.transform = `rotate(${angle}deg)`;
+            panL.style.transform = `translateX(-50%) rotate(${-angle}deg)`;
+            panR.style.transform = `translateX(-50%) rotate(${-angle}deg)`;
+
+            resBox.className = `result-box active ${finalClass}`;
+            resBox.innerHTML = resultText || "⚖️ BALANCED";
+        }
+
+        function addRecordLogItem(data) {
+            const list = document.getElementById('record-list');
+            const placeholder = list.querySelector('.record-placeholder');
+            if (placeholder) { list.innerHTML = ''; }
+
+            const pInfo = `<span style="color:var(--gold); font-weight:bold;">⭐ Primary:</span> Left [${data.primaryLeft || 'Empty'}] vs Right [${data.primaryRight || 'Empty'}] ➔ <b>${data.primaryResult}</b>`;
+            const sInfo = `<span style="color:var(--silver); font-weight:bold;">🌙 Secondary:</span> Left [${data.secondaryLeft || 'Empty'}] vs Right [${data.secondaryRight || 'Empty'}] ➔ <b>${data.secondaryResult}</b>`;
+
+            const item = document.createElement('div');
+            item.className = 'record-item';
+            item.innerHTML = `
+                <div class="record-meta">Row #${data.rowNumber} (${data.sheetName}) • Time: ${data.timestamp}</div>
+                <div>${pInfo}</div>
+                <div style="margin-top:4px;">${sInfo}</div>
+            `;
+            list.insertBefore(item, list.firstChild);
+        }
+
+        function triggerSwings() {
+            if (pendingResultData) {
+                applySwingToScale('p', pendingResultData.primaryResult);
+                applySwingToScale('s', pendingResultData.secondaryResult);
+                addRecordLogItem(pendingResultData);
+                document.getElementById('status-text').innerText = `✓ Updated to Row #${pendingResultData.rowNumber} (${pendingResultData.sheetName}).`;
+            }
+            document.getElementById('btn-update').disabled = false;
+        }
+    </script>
+</body>
+</html>
