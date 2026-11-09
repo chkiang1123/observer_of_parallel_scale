@@ -38,7 +38,7 @@
             flex-direction: column;
             align-items: center;
             flex-grow: 1;
-            position: relative; /* For top-right Set 1 Badge */
+            position: relative;
         }
 
         /* Enormous Top-Right Hand Corner Set 1 Badge */
@@ -79,7 +79,6 @@
             box-sizing: border-box;
         }
 
-        /* Scaled-down title headers */
         .scale-title {
             font-size: 14px;
             font-weight: 700;
@@ -199,15 +198,22 @@
             text-align: center; border-bottom: 2px solid rgba(255,255,255,0.07); padding-bottom: 8px;
         }
 
-        /* Inventory Table */
+        /* Inventory Table Highlight Logic */
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #333; font-size: 14px; }
+        th, td { padding: 8px 6px; text-align: center; border-bottom: 1px solid #333; font-size: 14px; transition: opacity 0.3s, color 0.3s; }
         th { background-color: #141419; text-transform: uppercase; color: #999; }
+        
         .color-cell { display: flex; align-items: center; justify-content: flex-start; gap: 8px; font-weight: bold; padding-left: 10px; }
         .color-dot { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
         
+        /* The UI for highlighting */
         .group-selector-ui { display:flex; justify-content:center; align-items:center; gap: 12px; margin-bottom: 12px; }
-        select { font-size: 16px; padding: 6px 12px; border-radius: 6px; background: #111; color: white; border: 1px solid #555; cursor: pointer; }
+        select { font-size: 16px; padding: 6px 12px; border-radius: 6px; background: #111; color: white; border: 1px solid #555; cursor: pointer; outline: none; }
+        
+        /* Highlight specific column */
+        .dimmed { opacity: 0.3; }
+        .highlighted-col { color: var(--gold); font-weight: bold; font-size: 18px; opacity: 1; text-shadow: 0 0 5px rgba(212, 175, 55, 0.5); }
+        .highlighted-th { color: var(--gold); }
 
         /* Record List */
         #record-list { display: flex; flex-direction: column; gap: 10px; max-height: 200px; overflow-y: auto; padding-right: 5px; }
@@ -218,54 +224,6 @@
         #record-list::-webkit-scrollbar { width: 6px; }
         #record-list::-webkit-scrollbar-track { background: #1f1f26; }
         #record-list::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
-
-        /* --- 3D POPUP OVERLAY --- */
-        #inventory-modal {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0, 0, 0, 0.85); display: none; justify-content: center;
-            align-items: center; z-index: 1000; backdrop-filter: blur(5px);
-            animation: fadeIn 0.2s ease-out forwards;
-        }
-
-        .modal-content {
-            background: linear-gradient(145deg, #2b2b36, #1f1f26);
-            padding: 30px; border-radius: 16px; border: 2px solid #555;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.8); width: 90%; max-width: 600px;
-            text-align: center;
-        }
-
-        .modal-content h2 { margin-top: 0; color: var(--gold); font-size: 28px; text-transform: uppercase; letter-spacing: 2px; border-bottom: 2px solid #444; padding-bottom: 10px; }
-
-        .modal-inventory-grid {
-            display: flex; justify-content: space-around; flex-wrap: wrap; gap: 20px; margin: 25px 0;
-        }
-
-        .modal-color-group { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 80px; }
-        .modal-color-label { font-weight: bold; font-size: 16px; text-transform: uppercase; letter-spacing: 1px; }
-        
-        .modal-cubes-display {
-            display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; width: 100%; min-height: 80px;
-        }
-
-        /* 3D Cube Effect */
-        .cube-3d {
-            width: 28px; height: 28px; border-radius: 4px;
-            box-shadow: 
-                inset 2px 2px 5px rgba(255,255,255,0.5),
-                inset -2px -2px 5px rgba(0,0,0,0.4),
-                3px 3px 0 rgba(0,0,0,0.8),
-                6px 6px 10px rgba(0,0,0,0.5);
-            transform: translate(-3px, -3px);
-        }
-
-        .modal-close-btn {
-            background: #e74c3c; color: white; font-size: 18px; font-weight: bold;
-            padding: 12px 40px; border-radius: 8px; border: none; cursor: pointer;
-            text-transform: uppercase; letter-spacing: 1px; transition: 0.15s;
-        }
-        .modal-close-btn:hover { background: #c0392b; transform: scale(0.97); }
-
-        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
     </style>
 </head>
 <body>
@@ -340,9 +298,9 @@
             <div class="dashboard-panel">
                 <h3>📦 Group Inventory (Remaining Cubes)</h3>
                 <div class="group-selector-ui">
-                    <label style="font-weight: bold; color: var(--gold);">Check Group:</label>
-                    <select id="observer-group-selector" onchange="trigger3DModal()">
-                        <option value="" disabled selected>-- Select --</option>
+                    <label style="font-weight: bold; color: var(--gold);">Highlight Group:</label>
+                    <select id="observer-group-selector" onchange="renderInventoryDisplay()">
+                        <option value="" selected>-- View All --</option>
                         <option value="A">Group A</option>
                         <option value="B">Group B</option>
                         <option value="C">Group C</option>
@@ -351,8 +309,12 @@
                 </div>
                 <table>
                     <thead>
-                        <tr>
-                            <th>Color</th><th>Group A</th><th>Group B</th><th>Group C</th><th>Group D</th>
+                        <tr id="inventory-thead-tr">
+                            <th>Color</th>
+                            <th data-group="A">Group A</th>
+                            <th data-group="B">Group B</th>
+                            <th data-group="C">Group C</th>
+                            <th data-group="D">Group D</th>
                         </tr>
                     </thead>
                     <tbody id="inventory-tbody">
@@ -372,133 +334,88 @@
         </div>
     </div>
 
-    <!-- 3D POPUP MODAL -->
-    <div id="inventory-modal">
-        <div class="modal-content">
-            <h2 id="modal-title">Group A Remaining Cubes</h2>
-            <div class="modal-inventory-grid" id="modal-inventory-grid">
-                <!-- 3D Cubes injected here -->
-            </div>
-            <button class="modal-close-btn" onclick="closeModal()">Close</button>
-        </div>
-    </div>
-
     <script>
         const SPREADSHEET_ID = '1M6_B8ccgFx1ud7zTLGTBsnkgVyKuYa3NJxqIhPm-_dQ';
         const colors = ['red', 'orange', 'green', 'blue', 'purple'];
         const colorLabels = { red: 'Red', orange: 'Orange', green: 'Green', blue: 'Blue', purple: 'Purple' };
         const groups = ['A', 'B', 'C', 'D'];
 
-        // Scale State tracking
+        // Scale State tracking for graphics
         let currentState = {
             p: { l: {red:0, orange:0, green:0, blue:0, purple:0}, r: {red:0, orange:0, green:0, blue:0, purple:0} },
             s: { l: {red:0, orange:0, green:0, blue:0, purple:0}, r: {red:0, orange:0, green:0, blue:0, purple:0} }
         };
 
-        // Inventory tracking (Initialized to 4)
+        // Inventory tracking (Calculated dynamically from sheet history)
         let groupInventory = {};
         
-        let lastProcessedKey = null;
+        let lastProcessedRow = 0;
         let animationQueue = [];
         let pendingResultData = null;
 
-        function initInventory() {
+        function resetInventoryToDefault() {
             groups.forEach(g => {
                 groupInventory[g] = { red: 4, orange: 4, green: 4, blue: 4, purple: 4 };
             });
-            renderInventoryDisplay();
         }
 
         function renderInventoryDisplay() {
             const tbody = document.getElementById('inventory-tbody');
             tbody.innerHTML = '';
+            
+            const selectedGroup = document.getElementById('observer-group-selector').value;
+
+            // Highlight table headers
+            const thRow = document.getElementById('inventory-thead-tr');
+            Array.from(thRow.children).forEach(th => {
+                const groupAttr = th.getAttribute('data-group');
+                if (groupAttr) {
+                    th.className = (selectedGroup && selectedGroup !== groupAttr) ? 'dimmed' : (selectedGroup === groupAttr ? 'highlighted-th' : '');
+                }
+            });
+
+            // Render table rows
             colors.forEach(color => {
                 let tr = document.createElement('tr');
                 let html = `<td class="color-cell"><div class="color-dot" style="background: var(--${color});"></div> ${colorLabels[color]}</td>`;
                 
                 groups.forEach(g => {
                     let count = groupInventory[g][color];
-                    let style = count === 0 ? 'color: #ff4d4d; font-weight: bold;' : '';
-                    html += `<td style="${style}">${count}</td>`;
+                    
+                    let cls = "";
+                    if (selectedGroup && selectedGroup !== g) cls = "dimmed";
+                    else if (selectedGroup === g) cls = "highlighted-col";
+                    
+                    let inlineStyle = "";
+                    if (count === 0 && (!selectedGroup || selectedGroup === g)) inlineStyle = "color: #ff4d4d; font-weight: bold;";
+                    
+                    html += `<td class="${cls}" style="${inlineStyle}">${count}</td>`;
                 });
                 tr.innerHTML = html;
                 tbody.appendChild(tr);
             });
         }
 
-        // Trigger 3D modal when dropdown changes
-        function trigger3DModal() {
-            const selector = document.getElementById('observer-group-selector');
-            const group = selector.value;
-            if(!group) return;
-
-            document.getElementById('modal-title').innerText = `Group ${group} Remaining Cubes`;
-            const grid = document.getElementById('modal-inventory-grid');
-            grid.innerHTML = '';
-
-            colors.forEach(color => {
-                let count = groupInventory[group][color];
-                let colDiv = document.createElement('div');
-                colDiv.className = 'modal-color-group';
-                
-                let title = document.createElement('div');
-                title.className = 'modal-color-label';
-                title.style.color = `var(--${color})`;
-                title.innerText = colorLabels[color];
-                
-                let cubesDiv = document.createElement('div');
-                cubesDiv.className = 'modal-cubes-display';
-                
-                if (count === 0) {
-                    cubesDiv.innerHTML = '<span style="color:#777; font-size:12px; font-style:italic;">Empty</span>';
-                } else {
-                    for(let i=0; i<count; i++) {
-                        let c3d = document.createElement('div');
-                        c3d.className = 'cube-3d';
-                        c3d.style.backgroundColor = `var(--${color})`;
-                        cubesDiv.appendChild(c3d);
-                    }
-                }
-
-                colDiv.appendChild(title);
-                colDiv.appendChild(cubesDiv);
-                grid.appendChild(colDiv);
-            });
-
-            document.getElementById('inventory-modal').style.display = 'flex';
-            // Reset selector so they can click the same group again if needed
-            selector.value = ""; 
-        }
-
-        function closeModal() {
-            document.getElementById('inventory-modal').style.display = 'none';
-        }
-
-        // Close modal if clicked outside content
-        document.getElementById('inventory-modal').addEventListener('click', function(e) {
-            if (e.target === this) closeModal();
-        });
-
-
         // --- DATA FETCHING ---
         function fetchUpdate() {
             const btn = document.getElementById('btn-update');
             const status = document.getElementById('status-text');
             btn.disabled = true;
-            status.innerText = "Checking sheet for new records...";
+            status.innerText = "Checking sheet for all historical records...";
 
             if (typeof google !== 'undefined' && google.script && google.script.run) {
                 google.script.run
-                    .withSuccessHandler(processData)
+                    .withSuccessHandler(processAllRowsData)
                     .withFailureHandler(err => {
                         fetchFromGoogleSheetDirect();
                     })
-                    .getLatestScaleData();
+                    .getLatestScaleData(); // Retrieves full history array
             } else {
                 fetchFromGoogleSheetDirect();
             }
         }
 
+        // Fallback Web Fetch
         function fetchFromGoogleSheetDirect() {
             const status = document.getElementById('status-text');
             const btn = document.getElementById('btn-update');
@@ -510,7 +427,7 @@
                     return res.text();
                 })
                 .then(csvText => {
-                    parseCsvData(csvText);
+                    parseCsvHistory(csvText);
                 })
                 .catch(err => {
                     status.innerText = "Fetch Error: " + err.message;
@@ -518,7 +435,8 @@
                 });
         }
 
-        function parseCsvData(csvText) {
+        // Parse full CSV to get history array
+        function parseCsvHistory(csvText) {
             const workbook = XLSX.read(csvText, { type: 'string' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
@@ -529,40 +447,52 @@
                 return;
             }
 
-            const headers = jsonRows[0].map(h => String(h).toLowerCase().trim());
-            const lastRow = jsonRows[jsonRows.length - 1];
+            const headerRow = jsonRows[0].map(h => String(h).toLowerCase().trim());
+            
+            const hasGroup = headerRow.some(h => h.includes('group'));
+            
+            let colTimestamp = 0, colGroup = 1, colWeights = 2;
+            let colPL = 3, colPR = 4, colPRes = 5;
+            let colSL = 6, colSR = 7, colSRes = 8;
 
-            function findCol(keywords, defaultIndex) {
-                for (let i = 0; i < headers.length; i++) {
-                    if (keywords.every(kw => headers[i].includes(kw))) return i;
-                }
-                return defaultIndex;
+            if (!hasGroup) {
+                colTimestamp = 0; colGroup = -1; colWeights = 1;
+                colPL = 2; colPR = 3; colPRes = 4;
+                colSL = 5; colSR = 6; colSRes = 7;
             }
 
-            const formattedData = {
-                rowNumber: jsonRows.length,
-                sheetName: "Google Sheet",
-                timestamp: String(lastRow[findCol(['time'], 0)] || new Date().toLocaleTimeString()),
-                group: String(lastRow[findCol(['group'], 1)] || "-"),
-                weights: String(lastRow[findCol(['weight'], 2)] || ""),
-                primaryLeft: String(lastRow[findCol(['primary', 'left'], 3)] || ""),
-                primaryRight: String(lastRow[findCol(['primary', 'right'], 4)] || ""),
-                primaryResult: String(lastRow[findCol(['primary', 'result'], 5)] || "⚖️ BALANCED"),
-                secondaryLeft: String(lastRow[findCol(['secondary', 'left'], 6)] || ""),
-                secondaryRight: String(lastRow[findCol(['secondary', 'right'], 7)] || ""),
-                secondaryResult: String(lastRow[findCol(['secondary', 'result'], 8)] || "⚖️ BALANCED")
-            };
+            let historyArray = [];
+            for (let i = 1; i < jsonRows.length; i++) {
+                let row = jsonRows[i];
+                if (row.length === 0) continue; // Skip empty rows
 
-            processData(formattedData);
+                historyArray.push({
+                    rowNumber: i + 1,
+                    timestamp: String(row[colTimestamp] || new Date().toLocaleTimeString()),
+                    group: colGroup >= 0 ? String(row[colGroup] || "-") : "-",
+                    weights: String(row[colWeights] || ""),
+                    primaryLeft: String(row[colPL] || ""),
+                    primaryRight: String(row[colPR] || ""),
+                    primaryResult: String(row[colPRes] || "⚖️ BALANCED"),
+                    secondaryLeft: String(row[colSL] || ""),
+                    secondaryRight: String(row[colSR] || ""),
+                    secondaryResult: String(row[colSRes] || "⚖️ BALANCED")
+                });
+            }
+
+            processAllRowsData({ history: historyArray, sheetName: "Google Sheet" });
         }
 
+        // Parse the config string (e.g. Red:2) without taking weight logic
         function parsePanString(str) {
             let res = {red:0, orange:0, green:0, blue:0, purple:0};
             if (!str || typeof str !== 'string') return res;
             let s = str.trim();
             if (s === '' || s.toLowerCase() === 'empty') return res;
 
-            let items = s.replace(/\|/g, ',').replace(/;/g, ',').split(',');
+            if (s.includes('|')) return res; // Reject weight config headers
+
+            let items = s.replace(/;/g, ',').split(',');
 
             items.forEach(item => {
                 let trimmed = item.trim();
@@ -593,17 +523,12 @@
             else if (key === 'purple' || key === 'p') res.purple = qty;
         }
 
-        function processData(data) {
+        function processAllRowsData(data) {
             const btn = document.getElementById('btn-update');
             const status = document.getElementById('status-text');
 
-            if (!data) {
-                status.innerText = "No response from Google Sheet.";
-                btn.disabled = false;
-                return;
-            }
-            if (data.empty) {
-                status.innerText = data.message;
+            if (!data || data.empty || !data.history || data.history.length === 0) {
+                status.innerText = data.message || "No calculation history found.";
                 btn.disabled = false;
                 return;
             }
@@ -613,9 +538,42 @@
                 return;
             }
 
+            const history = data.history;
+            const latestData = history[history.length - 1]; // Newest row is at the end
+
+            // 1. Fully recalculate inventory from scratch based on ALL historical rows
+            resetInventoryToDefault();
+            
+            // Loop through all history rows to deduct cubes correctly
+            history.forEach(row => {
+                let g = String(row.group).trim();
+                if (!groups.includes(g)) return; // Skip if no valid group provided
+
+                let pl = parsePanString(row.primaryLeft);
+                let pr = parsePanString(row.primaryRight);
+                let sl = parsePanString(row.secondaryLeft);
+                let sr = parsePanString(row.secondaryRight);
+
+                colors.forEach(c => {
+                    let totalUsed = pl[c] + pr[c] + sl[c] + sr[c];
+                    if (totalUsed > 0 && groupInventory[g]) {
+                        groupInventory[g][c] = Math.max(0, groupInventory[g][c] - totalUsed);
+                    }
+                });
+            });
+
+            // 2. Refresh the visual log record display (newest on top)
+            const list = document.getElementById('record-list');
+            list.innerHTML = '';
+            // We iterate backward to put latest on top
+            for (let i = history.length - 1; i >= 0; i--) {
+                addRecordLogItem(history[i], list);
+            }
+
+            // 3. Process Graphical Scale Drops for the *latest* row
             const targetStates = {
-                p: { l: parsePanString(data.primaryLeft), r: parsePanString(data.primaryRight) },
-                s: { l: parsePanString(data.secondaryLeft), r: parsePanString(data.secondaryRight) }
+                p: { l: parsePanString(latestData.primaryLeft), r: parsePanString(latestData.primaryRight) },
+                s: { l: parsePanString(latestData.secondaryLeft), r: parsePanString(latestData.secondaryRight) }
             };
 
             let totalAdded = 0;
@@ -632,13 +590,6 @@
                         if (diff < 0) {
                             requiresHardReset = true;
                         } else if (diff > 0) {
-                            
-                            // Deduct the newly placed cubes from the active group's inventory
-                            let g = data.group;
-                            if (g && groupInventory[g]) {
-                                groupInventory[g][color] = Math.max(0, groupInventory[g][color] - diff);
-                            }
-
                             if (newQty >= 10) {
                                 animationQueue.push({ type: 'block', scale, side, color, count: newQty });
                                 totalAdded += diff;
@@ -653,29 +604,27 @@
                 });
             });
 
-            const currentKey = `${data.rowNumber}-${data.primaryLeft}-${data.primaryRight}-${data.secondaryLeft}-${data.secondaryRight}`;
-            if (!requiresHardReset && totalAdded === 0 && lastProcessedKey === currentKey) {
-                status.innerText = `✓ Up to date with Row #${data.rowNumber}. No new changes.`;
+            if (!requiresHardReset && totalAdded === 0 && lastProcessedRow === latestData.rowNumber) {
+                status.innerText = `✓ Up to date with Row #${latestData.rowNumber}. No new graphical changes.`;
+                renderInventoryDisplay(); // Ensure highlights update
                 btn.disabled = false;
                 return;
             }
 
-            lastProcessedKey = currentKey;
-            pendingResultData = data;
+            lastProcessedRow = latestData.rowNumber;
+            pendingResultData = latestData;
             
-            // Re-render inventory to reflect any newly deducted cubes
             renderInventoryDisplay();
-
             resetScaleRotations();
 
             if (requiresHardReset) {
-                status.innerText = `Syncing scale state (Row #${data.rowNumber})...`;
+                status.innerText = `Syncing scale state (Row #${latestData.rowNumber})...`;
                 currentState = JSON.parse(JSON.stringify(targetStates));
                 hardRenderAllPans();
                 animationQueue = [];
                 triggerSwings();
             } else if (animationQueue.length > 0) {
-                status.innerText = `Adding ${totalAdded} cube(s) from Group ${data.group}...`;
+                status.innerText = `Adding ${totalAdded} cube(s) from Group ${latestData.group}...`;
                 processQueue();
             } else {
                 triggerSwings();
@@ -775,11 +724,7 @@
             resBox.innerHTML = resultText || "⚖️ BALANCED";
         }
 
-        function addRecordLogItem(data) {
-            const list = document.getElementById('record-list');
-            const placeholder = list.querySelector('.record-placeholder');
-            if (placeholder) { list.innerHTML = ''; }
-
+        function addRecordLogItem(data, listElement) {
             const pInfo = `<span style="color:var(--gold); font-weight:bold;">★ Primary:</span> Left [${data.primaryLeft || 'Empty'}] vs Right [${data.primaryRight || 'Empty'}] ➔ <b>${data.primaryResult}</b>`;
             const sInfo = `<span style="color:var(--silver); font-weight:bold;">🌙 Secondary:</span> Left [${data.secondaryLeft || 'Empty'}] vs Right [${data.secondaryRight || 'Empty'}] ➔ <b>${data.secondaryResult}</b>`;
 
@@ -790,14 +735,13 @@
                 <div>${pInfo}</div>
                 <div style="margin-top:4px;">${sInfo}</div>
             `;
-            list.insertBefore(item, list.firstChild);
+            listElement.appendChild(item); // Note: list was cleared and iterated backwards, so append child is correct
         }
 
         function triggerSwings() {
             if (pendingResultData) {
                 applySwingToScale('p', pendingResultData.primaryResult);
                 applySwingToScale('s', pendingResultData.secondaryResult);
-                addRecordLogItem(pendingResultData);
                 document.getElementById('status-text').innerText = `✓ Updated to Row #${pendingResultData.rowNumber}.`;
             }
             document.getElementById('btn-update').disabled = false;
